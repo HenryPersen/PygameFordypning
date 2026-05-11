@@ -21,7 +21,7 @@ originalcardpos = None
 handmargin = 200
 enemypoints = 3
 currentwave = 0
-currentstage = 1
+currentstage = None
 loops = 0
 attackphaseactive = False
 
@@ -42,6 +42,7 @@ jackalope = pygame.image.load("Spillet\Media\Sprites\polaroids\jackalope.png")
 hugag = pygame.image.load("Spillet\Media\Sprites\polaroids\hugag.png")
 kanin = pygame.image.load("Spillet\Media\Sprites\polaroids\Kanin.png")
 ulv = pygame.image.load(r"Spillet\Media\Sprites\polaroids\Ulv.png")
+hoopsnake = pygame.image.load(r"Spillet\Media\Sprites\polaroids\hoopsnake.png")
 
 
 #X Sprites
@@ -85,15 +86,21 @@ class map:
             self.velocity.y -= 0.75
         if self.position.y > 0:
             self.position.y = 0
+        if self.position.y < mapsprite.get_height() * -1 + 150:
+            self.velocity.y += 0.75
+        if self.position.y < mapsprite.get_height() * -1 + 75:
+            self.position.y = mapsprite.get_height() * -1 + 75
         surface.blit(mapsprite, self.position)
 
-areamap = map(((WIDTH - mapsprite.get_width())/2, mapsprite.get_height() * -1))
+areamap = map(pygame.math.Vector2((WIDTH - mapsprite.get_width())/2, mapsprite.get_height() * -1))
 
 class mapmark:
-    def __init__(self, position, connections, level):
+    def __init__(self, position, connections, stage, finished):
         self.position = position
+        self.visualposition = position
         self.connections = connections
-        self.level = level
+        self.stage = stage
+        self.finished = finished
         randomsprite = random.randint(1,3)
         if randomsprite == 1:
             self.sprite = x1sprite
@@ -101,9 +108,29 @@ class mapmark:
             self.sprite = x2sprite
         elif randomsprite == 3:
             self.sprite = x3sprite
+
     def draw(self, surface):
-        surface.blit(self.sprite, self.position.x - (self.sprite.get_width / 2), self.position.y (self.sprite.get_height / 2))
+
+        markid = mapmarkers.index(self)
+        if markid + 1 <= len(mapmarkers) - 1:
+            self.connections = [mapmarkers[markid+1]]
+
+        self.visualposition = pygame.math.Vector2(self.position.x + (WIDTH / 2), areamap.position.y + mapsprite.get_height() - self.position.y - 200)
+
+        if self.connections != None:
+            for connection in self.connections:
+                if self.finished == False:
+                    pygame.draw.line(surface, (199, 12 ,12), self.visualposition, connection.visualposition, 10)
+                else:
+                    pygame.draw.line(surface, (128, 8 ,8), self.visualposition, connection.visualposition, 10)
+
+        surface.blit(self.sprite, (self.visualposition.x - self.sprite.get_width() / 2, self.visualposition.y - self.sprite.get_height() / 2))
         
+
+mapmarkers = []
+
+
+
 
 class card:
     def __init__(self, info, abilities, stats, image, name):
@@ -119,7 +146,9 @@ class card:
         self.hp = stats.x
         self.maxhp = stats.x
         self.dmg = stats.y
+        self.ogdmg = stats.y
         self.cost = stats.z
+        self.ogcost = stats.z
         self.image = image
         self.name = name
         self.hover = False
@@ -193,14 +222,21 @@ class card:
         else:
             self.y += 50
         
-
+    def takedamage(self, damageamount):
+        self.hp -= damageamount
+        for ability in self.abilities:
+            if ability == "Hide":
+                print("Hiding Hidebehind")
+                playedcards[playedcards.index(self)] = None
+                hand.append(self)
+                self.y = HEIGHT-250
 
     def attack(self, orderinlane):
         self.orderinlane = orderinlane
         self.attackanimation()
         if(self.side == "Player"): #SpillerAngrep
             if spawnedenemycards[orderinlane] != None:
-                spawnedenemycards[orderinlane].hp -= self.dmg
+                spawnedenemycards[orderinlane].takedamage(self.dmg)
                 
 
         #Attack-Abilities
@@ -210,12 +246,48 @@ class card:
                     if spawnedenemycards[orderinlane + 1] == None:
                         spawnedenemycards[orderinlane + 1] = spawnedenemycards[orderinlane]
                         spawnedenemycards[orderinlane] = None
+            if ability == "Rifle":
+                randomlane = random.randint(0, len(lanes) - 1)
+                if playedcards[randomlane] != None:
+                    playedcards[randomlane].takedamage(2)
+                else:
+                    damageplayer(2)
 
         if(self.side == "Enemy"):
             if playedcards[orderinlane] != None:
-                playedcards[orderinlane].hp -= self.dmg
+                playedcards[orderinlane].takedamage(self.dmg)
             else:
                 damageplayer(self.dmg)
+
+playercarddictionary = [
+    card([0, True, "Player"], [], pygame.math.Vector3(2,1,1), jackalope, "Jackalope"),
+    card([0, True, "Player"], [], pygame.math.Vector3(3,2,2), hugag, "Hugag"),
+    card([0, True, "Player"], ["Extinct+2"], pygame.math.Vector3(2,1,2), jackalope, "Thylacine"),
+    card([0, True, "Player"], ["Rolling"], pygame.math.Vector3(1,1,2), hoopsnake, "Hoop Snake"),
+    card([0, True, "Player"], ["Hide"], pygame.math.Vector3(5,2,2), jackalope, "Hidebehind"),
+    card([0, True, "Player"], ["Mover Over"], pygame.math.Vector3(1,1,2), jackalope, "Ball-Tailed Cat"),
+]
+def findplayercard(cardname):
+    for card in playercarddictionary:
+        if card.name == cardname:
+            return copy.copy(card)
+    print("Error, found no player card with name %s" % cardname)
+    sys.exit()
+    pygame.quit()
+
+enemycarddictionary = [
+    card([0, True, "Enemy"], [], pygame.math.Vector3(2, 1, 1), kanin, "Kanin"),
+    card([0, True, "Enemy"], [], pygame.math.Vector3(2, 2, 2), ulv, "Ulv"),
+    card([0, True, "Enemy"], [], pygame.math.Vector3(4, 3, 4), ulv, "Bjørn"),
+    card([0, True, "Enemy"], ["Rifle"], pygame.math.Vector3(6, 2, 5), ulv, "Jeger"),
+]
+def findenemycard(cardname):
+    for card in enemycarddictionary:
+        if card.name == cardname:
+            return copy.copy(card)
+    print("Error, found no enemy card with name %s" % cardname)
+    sys.exit()
+    pygame.quit()
 
 def damageplayer(damage):
     global playerhp
@@ -233,37 +305,34 @@ def damageplayer(damage):
 #Navn på kortet til slutt
 
 deck = [
-    card([0, True, "Player"], [], pygame.math.Vector3(3,2,2), hugag, "Hugag"),
-    card([0, True, "Player"], [], pygame.math.Vector3(3,2,2), hugag, "Hugag"),
-    card([0, True, "Player"], [], pygame.math.Vector3(2,1,1), jackalope, "Jackalope"),
-    card([0, True, "Player"], [], pygame.math.Vector3(2,1,1), jackalope, "Jackalope"),
-    card([0, True, "Player"], [], pygame.math.Vector3(2,1,1), jackalope, "Jackalope"),
-    card([0, True, "Player"], ["Extinct+2"], pygame.math.Vector3(2,1,2), jackalope, "Thylacine")
+    findplayercard("Jackalope"),
+    findplayercard("Jackalope"),
+    findplayercard("Jackalope"),
+    findplayercard("Jackalope"),
+    findplayercard("Jackalope"),
+    findplayercard("Hugag"),
+    findplayercard("Hugag"),
+    findplayercard("Hugag"),
+    findplayercard("Thylacine"),
+    findplayercard("Hoop Snake"),
+    findplayercard("Hidebehind")
 ]
+random.shuffle(deck)
 
-hand = [
-    card([0, True, "Player"], [], pygame.math.Vector3(2,1,1), jackalope, "Jackalope"),
-    card([0, True, "Player"], [], pygame.math.Vector3(2,1,1), jackalope, "Jackalope"),
-    card([0, True, "Player"], ["Rolling"], pygame.math.Vector3(1,1,2), jackalope, "Hoop Snake"),
-    card([0, True, "Player"], [], pygame.math.Vector3(3,2,2), hugag, "Hugag"),
-]
+hand = []
 
 playedcards = []
 
 
 class lane:
-    def __init__(self, position, laneinfo, PorE, cardinlane , enemies):
+    def __init__(self, position, laneinfo, PorE, cardinlane):
         self.position = position
         self.laneinfo = laneinfo
-        self.enemies = enemies
         self.card = cardinlane
         self.pore = PorE
     
     def draw(self, surface):
         surface.blit(lanesprite, (self.position.x, self.position.y))
-
-    def spawnenemy(self):
-        self.enemies[0]
 
 class enemypool:
     def __init__(self, name, enemies):
@@ -271,20 +340,39 @@ class enemypool:
         self.enemies = enemies
 
 enemypools = [
-    enemypool("Level 1 Pool", [
-        card([0, True, "Enemy"], [], pygame.math.Vector3(2, 1 ,1), kanin, "Kanin"),
+    enemypool("Kanin", [
+        findenemycard("Kanin")
     ]),
-    enemypool("Level 2 Pool", [
-        card([0, True, "Enemy"], [], pygame.math.Vector3(2, 1 ,1), kanin, "Kanin"),
-        card([0, True, "Enemy"], [], pygame.math.Vector3(2, 2 ,2), ulv, "Ulv"),
-    ])
+    enemypool("UlvKanin", [
+        findenemycard("Kanin"),
+        findenemycard("Ulv")
+    ]),
+    enemypool("BjørnUlvKanin", [
+        findenemycard("Kanin"),
+        findenemycard("Ulv"),
+        findenemycard("Bjørn")
+    ]),
+    enemypool("BjørnUlv", [
+        findenemycard("Ulv"),
+        findenemycard("Bjørn")
+    ]),
+    enemypool("JegerUlv", [
+        findenemycard("Ulv"),
+        findenemycard("Jeger")
+    ]),
 ]
 
 def findpool(poolname):
     for pool in enemypools:
         if pool.name == poolname:
-            return pool
-    print("Found no pool with name " + poolname)
+            return copy.copy(pool)
+    print("Found no pool with name %s" % poolname)
+
+def findstage(stagename):
+    for stage in stages:
+        if stage.name == stagename:
+            return stage
+    print("Found no stage with name %s" % stagename)
 
 class stage:
     def __init__(self, name, waves, forcedenemies, difficulty, pools):
@@ -298,18 +386,52 @@ class stage:
             pygame.quit()
             sys.exit()
 
-stages = [ #Her er hva du skal skrive inn for stagen i rekkefølge: Navnet på banen, Hvor mange "Waves" banen består av, Om det er noen tvunget fiender som skal spawne, farlighetsgrad og til slutt hvilke pools wavesene bruker og hvor mange tokens hver wave får
-    #Vanskelighetsgrad Følger denne formen: 1 - Enkel / Starterbanene, 2 - Baner som kan være en liten trussel tidlig i spillet, 3 - Tidlige bosser og Middels vanskelige baner, 4 - Litt senere bosser og andre vanskelige bosser, 5 - Farligste av alle.
-    stage("First Level", 3, None, 1, [ #Enemypools[] is pool used for fetching enemies for stage, next number is how many tokens can be used to spawn enemies
-        findpool("Level 1 Pool"), 2,
-        findpool("Level 1 Pool"), 3,
-        findpool("Level 2 Pool"), 4,
+stages = [ #Her er hva du skal skrive inn for stagen i rekkefølge: Navnet på banen, Hvor mange "Waves" banen består av, Om det er noen tvunget fiender som skal spawne (fungerer ikke akkurat nå), farlighetsgrad og til slutt hvilke pools wavesene bruker og hvor mange tokens hver wave får
+    #Vanskelighetsgrad Følger denne formen: 1 - Enkel / Starterbanene, 2 - Baner som kan være en liten trussel tidlig i spillet, 3 - Tidlige bosser og Middels vanskelige baner, 4 - Litt senere bosser og andre vanskelige baner, 5 - Farligste av alle.
+    stage("First Level", 3, None, 1, [ #findpool() is pool used for fetching enemies for stage, next number is how many tokens can be used to spawn enemies
+        findpool("Kanin"), 2,
+        findpool("Kanin"), 3,
+        findpool("UlvKanin"), 4,
     ]),
-    stage("Testing Level", 1, None, 1, [ #Enemypools[] is pool used for fetching enemies for stage, next number is how many tokens can be used to spawn enemies
-        findpool("Level 1 Pool"), 1,
+    stage("Second Level", 3, None, 1, [
+        findpool("Kanin"), 2,
+        findpool("UlvKanin"), 3,
+        findpool("UlvKanin"), 4,
+    ]),
+    stage("Third Level", 3, None, 1, [
+        findpool("UlvKanin"), 3,
+        findpool("UlvKanin"), 4,
+        findpool("BjørnUlvKanin"), 5,
+    ]),
+    stage("Fourth Level", 3, None, 2, [
+        findpool("BjørnUlvKanin"), 5,
+        findpool("Kanin"), 2,
+        findpool("JegerUlv"), 7,
+    ]),
+    stage("Fifth Level", 10, None, 1, [
+        findpool("JegerUlv"), 7,
+        findpool("JegerUlv"), 7,
+        findpool("JegerUlv"), 7,
+        findpool("JegerUlv"), 7,
+        findpool("JegerUlv"), 7,
+        findpool("JegerUlv"), 7,
+        findpool("JegerUlv"), 7,
+        findpool("JegerUlv"), 10,
+        findpool("JegerUlv"), 12,
+        findpool("JegerUlv"), 15,
+    ]),
+    stage("Sixth Level", 3, None, 1, [
+        findpool("Kanin"), 2,
+        findpool("Kanin"), 3,
+        findpool("UlvKanin"), 4,
     ]),
 ]
 
+for i in range(6):
+    if i == 1:
+        mapmarkers.append(mapmark(pygame.math.Vector2(0, i * 150), [], stages[i], False))
+    else:
+        mapmarkers.append(mapmark(pygame.math.Vector2(random.randint(-150, 150), random.randint(-60, 60) + i * 150), [], stages[i], False))
 
 waves = []
 spawnedenemycards = []
@@ -317,9 +439,9 @@ lanes = []
 enemylanes = []
 
 for i in range(5):
-    lanes.append(lane(pygame.math.Vector2((((WIDTH-50 * 2) / 5) * i)+50, 475), "Standard", "Player" ,None ,[]))
+    lanes.append(lane(pygame.math.Vector2((((WIDTH-50 * 2) / 5) * i)+50, 475), "Standard", "Player" ,None))
 for i in range(5):
-    enemylanes.append(lane(pygame.math.Vector2((((WIDTH-50 * 2) / 5) * i)+50, 175), "Standard", "Enemy" , None ,[]))
+    enemylanes.append(lane(pygame.math.Vector2((((WIDTH-50 * 2) / 5) * i)+50, 175), "Standard", "Enemy" , None))
 for i in range(len(lanes)):
     playedcards.append(None)
 for i in range(len(lanes)):
@@ -327,20 +449,32 @@ for i in range(len(lanes)):
 
 def spawnwave(stage):
     global currentwave
+    global spawnedenemycards
 
     points = stage.pools[((currentwave+1)*2)-1]
     
     while points > 0:
-        chosenenemy = random.choice(stage.pools[((currentwave+1)*2)-2].enemies)
-        while chosenenemy.cost > points:
+        if None in spawnedenemycards:
             chosenenemy = random.choice(stage.pools[((currentwave+1)*2)-2].enemies)
-        global spawnedenemycards
-        chosenlane = random.randint(0,4)
-        if spawnedenemycards[chosenlane] == None:
+            while chosenenemy.cost > points:
+                chosenenemy = random.choice(stage.pools[((currentwave+1)*2)-2].enemies)
+            
+            chosenlane = random.randint(0,4)
+            if spawnedenemycards[chosenlane] == None:
+                spawnedenemycards[chosenlane] = copy.copy(chosenenemy)
+                spawnedenemycards[chosenlane].visualx = enemylanes[chosenlane].position.x
+                spawnedenemycards[chosenlane].visualy = enemylanes[chosenlane].position.y - 200
+                points -= chosenenemy.cost
+        else:
+            chosenenemy = max(stage.pools[((currentwave+1)*2)-2].enemies, key=lambda x: x["cost"])
+            chosenlane = random.randint(0,4)
+            points += spawnedenemycards[chosenlane].cost
             spawnedenemycards[chosenlane] = copy.copy(chosenenemy)
             spawnedenemycards[chosenlane].visualx = enemylanes[chosenlane].position.x
             spawnedenemycards[chosenlane].visualy = enemylanes[chosenlane].position.y - 200
             points -= chosenenemy.cost
+
+            
     
 
 
@@ -359,7 +493,8 @@ def changephase(nextphase):
     if nextphase == 1:
         
         gamephase = 1
-        areamap.velocity.y += 35
+        areamap.position.y = mapsprite.get_height() * -1
+        areamap.velocity.y = 35
         for item in hand:
             item.lerpspeed = 0.5
             item.x = -200 - random.randint(-50,50)
@@ -368,13 +503,23 @@ def changephase(nextphase):
             if item != None:
                 item.lerpspeed = 0.5
                 item.x = -200 - random.randint(-50,50)
+        changingphase = False
+    if nextphase == 0:
+        global troverdighet
+        troverdighet = 10
+        global currentwave
+        currentwave = 0
+        gamephase = 0
+        random.shuffle(deck)
+        for i in range(4):
+            drawcard()
+        changingphase = False
+        
 
 
 graveyard = [
-
 ]
 enemygraveyard = [
-
 ]
 
 def checkhealth():
@@ -387,6 +532,10 @@ def checkhealth():
                 if spawnedenemycards[i].hp <= 0:
                     enemygraveyard.append(spawnedenemycards[i])
                     spawnedenemycards[i] = None
+    for i in range(len(hand)):
+        if hand[i].hp <= 0:
+            graveyard.append(hand[i])
+            hand.pop(i)
     
     timers.append(timer(250, finishattackphase, "None"))
 
@@ -417,11 +566,11 @@ def finishattackphase():
     for i in spawnedenemycards:
         if i != None:
             return
-
+    global currentstage
     global currentwave
     currentwave += 1
-    if currentwave < stages[currentstage].waves:
-        spawnwave(stages[currentstage])
+    if currentwave < currentstage.waves:
+        spawnwave(currentstage)
     else:  
         for i in graveyard:
             deck.append(i)
@@ -435,6 +584,15 @@ def finishattackphase():
         playedcards = []
         for i in range(len(lanes)):
             playedcards.append(None)
+        for i in deck:
+            i.y = HEIGHT-250
+            i.visualy = HEIGHT-250
+            i.hp = i.maxhp
+            i.dmg = i.ogdmg
+            i.cost = i.ogcost
+        for marker in mapmarkers:
+            if marker.stage == currentstage:
+                marker.finished = True
         print("You win!")
         pygame.image.save(screen, "Backgroundphase1.jpeg")
         heldcard == None
@@ -461,10 +619,13 @@ def attackphase():
         loops = 0
         timers.append(timer(650, checkhealth, "None"))
         
+for i in range(4):
+    drawcard()
+
+currentstage = stages[0]
+spawnwave(currentstage)
 
 
-
-spawnwave(stages[currentstage])
 while True:
     for timekeeper in timers:
         timekeeper.checktime()
@@ -476,16 +637,15 @@ while True:
         if gamephase == 0:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_1:
-                    #drawcard() #Husk å fjerne denne før du leverer spillet
+                    drawcard() #Husk å fjerne denne før du leverer spillet
                     print("Drawing Card")
                 if event.key == pygame.K_2:
                     if attackphaseactive == False:
                         attackphase()
                         print("Attacking")
             if event.type == pygame.MOUSEBUTTONUP:
-                print("Mouse up")
                 if event.button == 1:
-                    if heldcard != None:
+                    if heldcard != None and attackphaseactive == False:
                         for lane in lanes:
                             if pygame.mouse.get_pos()[0] > lane.position.x and pygame.mouse.get_pos()[1] > lane.position.y:
                                 if pygame.mouse.get_pos()[0] < lane.position.x + lanesprite.get_width() and pygame.mouse.get_pos()[1] < lane.position.y + lanesprite.get_height():
@@ -503,8 +663,21 @@ while True:
         if gamephase == 1:
             if event.type == pygame.MOUSEWHEEL:
                 areamap.velocity.y += event.y
-                print(event.y)
-        
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    for marker in mapmarkers:
+                        if pygame.mouse.get_pos()[0] > marker.visualposition.x - marker.sprite.get_width() / 2 and pygame.mouse.get_pos()[1] > marker.visualposition.y - marker.sprite.get_height() / 2:
+                            if pygame.mouse.get_pos()[0] < marker.visualposition.x + marker.sprite.get_width() / 2 and pygame.mouse.get_pos()[1] < marker.visualposition.y + marker.sprite.get_height() / 2:
+                                print("Hit Marker %s" % mapmarkers.index(marker))
+                                if marker.stage != None:
+                                    for connectionmarker in mapmarkers:
+                                        if marker in connectionmarker.connections:
+                                            if connectionmarker.finished == True and marker.finished == False:
+                                                changephase(0)
+                                                currentstage = marker.stage
+                                                spawnwave(currentstage)
+                                break
+                                                
 
     if gamephase == 0:
         handloops = 0
@@ -573,6 +746,8 @@ while True:
         backgroundimage = pygame.image.load("Backgroundphase1.jpeg")
         screen.blit(backgroundimage, (0,0))
         areamap.draw(screen)
+        for marker in mapmarkers:
+            marker.draw(screen)
 
         
     
