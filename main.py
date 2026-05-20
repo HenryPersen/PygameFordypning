@@ -6,8 +6,8 @@ import copy
 pygame.init()
 #Basic Pygame
 pygame.display.set_caption("Cryptoscam")
-WIDTH, HEIGHT = 1000, 1000
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+WIDTH, HEIGHT = 1000, 800
+screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.SCALED | pygame.RESIZABLE)
 clock = pygame.time.Clock()
 
 BG_COLOR = (30, 30, 30)
@@ -24,17 +24,20 @@ currentwave = 0
 currentstage = None
 loops = 0
 attackphaseactive = False
+HANDHEIGHT = 300
 
 gamephase = 0
 changingphase = False
+currentshop = "NewCards"
 
 playerhp = 10
 troverdighet = 10
+dollars = 5
 
 font = pygame.font.SysFont("Comic Sans", 13)
 
 #Sprites
-basiccard = pygame.image.load("Spillet\Media\Sprites\BasicKort.png")
+basiccard = pygame.image.load("Spillet\Media\Sprites\polaroidkort.png")
 lanesprite = pygame.image.load("Spillet\Media\Sprites\Lane.png")
 mapsprite = pygame.image.load("Spillet\Media\Sprites\mapv2.png")
 
@@ -140,8 +143,8 @@ class card:
         self.abilities = abilities
         self.x = 0
         self.visualx = 0
-        self.y = HEIGHT-250
-        self.visualy = HEIGHT-250
+        self.y = HEIGHT-HANDHEIGHT
+        self.visualy = HEIGHT-HANDHEIGHT
         self.order = 0
         self.hp = stats.x
         self.maxhp = stats.x
@@ -164,9 +167,10 @@ class card:
             self.visualy = pygame.math.lerp(self.visualy, self.y, game_speed/12 * self.lerpspeed)
         self.visualx = pygame.math.lerp(self.visualx, self.x, game_speed/12 * self.lerpspeed)
         if self.played:
+            surface.blit(self.image, (self.visualx+12, self.visualy+10))
             if self.rarity == 0:
                 surface.blit(basiccard, (self.visualx, self.visualy))
-            surface.blit(self.image, (self.visualx+18, self.visualy+12))
+            
             self.addtext(surface, 4)
 
         self.hover = False
@@ -177,22 +181,22 @@ class card:
             if line == 0:
                 text_surface = font.render(str(self.name), True, BLACK)
                 text_rect = text_surface.get_rect()
-                text_rect.center = (self.visualx + text_rect.w, self.visualy+136+(line*20))
+                text_rect.center = (self.visualx + text_rect.w, self.visualy+186+(line*20))
                 surface.blit(text_surface, text_rect)
             if line == 1:
                 text_surface = font.render("HP: " + str(int(self.hp)) + "/" + str(int(self.maxhp)), True, BLACK)
                 text_rect = text_surface.get_rect()
-                text_rect.center = (self.visualx + text_rect.w, self.visualy+136+(line*20))
+                text_rect.center = (self.visualx + text_rect.w, self.visualy+186+(line*20))
                 surface.blit(text_surface, text_rect)
             if line == 2:
                 text_surface = font.render("DMG: " + str(int(self.dmg)), True, BLACK)
                 text_rect = text_surface.get_rect()
-                text_rect.center = (self.visualx + text_rect.w, self.visualy+136+(line*20))
+                text_rect.center = (self.visualx + text_rect.w, self.visualy+186+(line*20))
                 surface.blit(text_surface, text_rect)
             if line == 3:
                 text_surface = font.render("COST: " + str(int(self.cost)), True, BLACK)
                 text_rect = text_surface.get_rect()
-                text_rect.center = (self.visualx + text_rect.w, self.visualy+136+(line*20))
+                text_rect.center = (self.visualx + text_rect.w, self.visualy+186+(line*20))
                 surface.blit(text_surface, text_rect)
     
     def finishattackanimation(self):
@@ -229,7 +233,7 @@ class card:
                 print("Hiding Hidebehind")
                 playedcards[playedcards.index(self)] = None
                 hand.append(self)
-                self.y = HEIGHT-250
+                self.y = HEIGHT-HANDHEIGHT
 
     def attack(self, orderinlane):
         self.orderinlane = orderinlane
@@ -389,7 +393,7 @@ class stage:
 stages = [ #Her er hva du skal skrive inn for stagen i rekkefølge: Navnet på banen, Hvor mange "Waves" banen består av, Om det er noen tvunget fiender som skal spawne (fungerer ikke akkurat nå), farlighetsgrad og til slutt hvilke pools wavesene bruker og hvor mange tokens hver wave får
     #Vanskelighetsgrad Følger denne formen: 1 - Enkel / Starterbanene, 2 - Baner som kan være en liten trussel tidlig i spillet, 3 - Tidlige bosser og Middels vanskelige baner, 4 - Litt senere bosser og andre vanskelige baner, 5 - Farligste av alle.
     stage("First Level", 3, None, 1, [ #findpool() is pool used for fetching enemies for stage, next number is how many tokens can be used to spawn enemies
-        findpool("Kanin"), 2,
+        findpool("UlvKanin"), 7,
         findpool("Kanin"), 3,
         findpool("UlvKanin"), 4,
     ]),
@@ -439,9 +443,9 @@ lanes = []
 enemylanes = []
 
 for i in range(5):
-    lanes.append(lane(pygame.math.Vector2((((WIDTH-50 * 2) / 5) * i)+50, 475), "Standard", "Player" ,None))
+    lanes.append(lane(pygame.math.Vector2((((WIDTH-50 * 2) / 5) * i)+50, 350), "Standard", "Player" ,None))
 for i in range(5):
-    enemylanes.append(lane(pygame.math.Vector2((((WIDTH-50 * 2) / 5) * i)+50, 175), "Standard", "Enemy" , None))
+    enemylanes.append(lane(pygame.math.Vector2((((WIDTH-50 * 2) / 5) * i)+50, 50), "Standard", "Enemy" , None))
 for i in range(len(lanes)):
     playedcards.append(None)
 for i in range(len(lanes)):
@@ -466,10 +470,24 @@ def spawnwave(stage):
                 spawnedenemycards[chosenlane].visualy = enemylanes[chosenlane].position.y - 200
                 points -= chosenenemy.cost
         else:
-            chosenenemy = max(stage.pools[((currentwave+1)*2)-2].enemies, key=lambda x: x["cost"])
             chosenlane = random.randint(0,4)
             points += spawnedenemycards[chosenlane].cost
-            spawnedenemycards[chosenlane] = copy.copy(chosenenemy)
+
+            mostexpensiveenemy = None
+            excludedenemies = []
+            for enemy in stage.pools[((currentwave+1)*2)-2].enemies:
+                if mostexpensiveenemy == None:
+                    mostexpensiveenemy = enemy
+                elif enemy.cost > mostexpensiveenemy.cost:
+                    if enemy.cost <= points:
+                        mostexpensiveenemy = enemy
+                        print("Grabbing most expensive enemy")
+                    else:
+                        excludedenemies.append(enemy)
+            if mostexpensiveenemy == None:
+                print("Error: Failed to find most expensive enemy")
+
+            spawnedenemycards[chosenlane] = copy.copy(mostexpensiveenemy)
             spawnedenemycards[chosenlane].visualx = enemylanes[chosenlane].position.x
             spawnedenemycards[chosenlane].visualy = enemylanes[chosenlane].position.y - 200
             points -= chosenenemy.cost
@@ -585,8 +603,8 @@ def finishattackphase():
         for i in range(len(lanes)):
             playedcards.append(None)
         for i in deck:
-            i.y = HEIGHT-250
-            i.visualy = HEIGHT-250
+            i.y = HEIGHT-HANDHEIGHT
+            i.visualy = HEIGHT-HANDHEIGHT
             i.hp = i.maxhp
             i.dmg = i.ogdmg
             i.cost = i.ogcost
@@ -734,11 +752,11 @@ while True:
                     card.draw(screen)
         text_surface = font.render("HP: " + str(int(playerhp)) + "/10", True, WHITE)
         text_rect = text_surface.get_rect()
-        text_rect.center = (100,100)
+        text_rect.center = (100,20)
         screen.blit(text_surface, text_rect)
         text_surface = font.render("Troverdighet: " + str(troverdighet) + "/10", True, WHITE)
         text_rect = text_surface.get_rect()
-        text_rect.center = (100,120)
+        text_rect.center = (100,40)
         screen.blit(text_surface, text_rect)
 
 
@@ -749,6 +767,10 @@ while True:
         for marker in mapmarkers:
             marker.draw(screen)
 
-        
+
+    if gamephase == 2:
+        if currentshop == "NewCards":
+            print("at card shop")
+
     
     pygame.display.flip()
