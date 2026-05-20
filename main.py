@@ -6,9 +6,10 @@ import copy
 pygame.init()
 #Basic Pygame
 pygame.display.set_caption("Cryptoscam")
-WIDTH, HEIGHT = 1000, 800
+WIDTH, HEIGHT = 1000, 900
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.SCALED | pygame.RESIZABLE)
 clock = pygame.time.Clock()
+fakescreen = screen.copy()
 
 BG_COLOR = (30, 30, 30)
 BLACK = (0,0,0)
@@ -25,6 +26,7 @@ currentstage = None
 loops = 0
 attackphaseactive = False
 HANDHEIGHT = 300
+standardcardscale = 1.2
 
 gamephase = 0
 changingphase = False
@@ -46,6 +48,7 @@ hugag = pygame.image.load("Spillet\Media\Sprites\polaroids\hugag.png")
 kanin = pygame.image.load("Spillet\Media\Sprites\polaroids\Kanin.png")
 ulv = pygame.image.load(r"Spillet\Media\Sprites\polaroids\Ulv.png")
 hoopsnake = pygame.image.load(r"Spillet\Media\Sprites\polaroids\hoopsnake.png")
+thylacine = pygame.image.load(r"Spillet\Media\Sprites\polaroids\thylacine.png")
 
 
 #X Sprites
@@ -128,6 +131,12 @@ class mapmark:
                     pygame.draw.line(surface, (128, 8 ,8), self.visualposition, connection.visualposition, 10)
 
         surface.blit(self.sprite, (self.visualposition.x - self.sprite.get_width() / 2, self.visualposition.y - self.sprite.get_height() / 2))
+    
+    def load(self):
+        if isinstance(self.stage, stage):
+            changephase(0)
+            currentstage = self.stage
+            spawnwave(currentstage)
         
 
 mapmarkers = []
@@ -159,6 +168,7 @@ class card:
         self.detached = False
         self.animating = False
         self.orderinlane = None
+        self.cardscale = standardcardscale
 
     def draw(self, surface):
         if self.hover == True:
@@ -167,9 +177,9 @@ class card:
             self.visualy = pygame.math.lerp(self.visualy, self.y, game_speed/12 * self.lerpspeed)
         self.visualx = pygame.math.lerp(self.visualx, self.x, game_speed/12 * self.lerpspeed)
         if self.played:
-            surface.blit(self.image, (self.visualx+12, self.visualy+10))
+            surface.blit(pygame.transform.scale(self.image, (125 / self.cardscale, 125 / self.cardscale)), (self.visualx+(12 / self.cardscale), self.visualy+(10 / self.cardscale)))
             if self.rarity == 0:
-                surface.blit(basiccard, (self.visualx, self.visualy))
+                surface.blit(pygame.transform.scale(basiccard, (144 / self.cardscale, 296 / self.cardscale) ), (self.visualx, self.visualy))
             
             self.addtext(surface, 4)
 
@@ -181,22 +191,22 @@ class card:
             if line == 0:
                 text_surface = font.render(str(self.name), True, BLACK)
                 text_rect = text_surface.get_rect()
-                text_rect.center = (self.visualx + text_rect.w, self.visualy+186+(line*20))
+                text_rect.center = (self.visualx + text_rect.w, self.visualy+(186 / self.cardscale)+(line*20))
                 surface.blit(text_surface, text_rect)
             if line == 1:
                 text_surface = font.render("HP: " + str(int(self.hp)) + "/" + str(int(self.maxhp)), True, BLACK)
                 text_rect = text_surface.get_rect()
-                text_rect.center = (self.visualx + text_rect.w, self.visualy+186+(line*20))
+                text_rect.center = (self.visualx + text_rect.w, self.visualy+(186 / self.cardscale)+(line*20))
                 surface.blit(text_surface, text_rect)
             if line == 2:
                 text_surface = font.render("DMG: " + str(int(self.dmg)), True, BLACK)
                 text_rect = text_surface.get_rect()
-                text_rect.center = (self.visualx + text_rect.w, self.visualy+186+(line*20))
+                text_rect.center = (self.visualx + text_rect.w, self.visualy+(186 / self.cardscale)+(line*20))
                 surface.blit(text_surface, text_rect)
             if line == 3:
                 text_surface = font.render("COST: " + str(int(self.cost)), True, BLACK)
                 text_rect = text_surface.get_rect()
-                text_rect.center = (self.visualx + text_rect.w, self.visualy+186+(line*20))
+                text_rect.center = (self.visualx + text_rect.w, self.visualy+(186 / self.cardscale)+(line*20))
                 surface.blit(text_surface, text_rect)
     
     def finishattackanimation(self):
@@ -264,9 +274,9 @@ class card:
                 damageplayer(self.dmg)
 
 playercarddictionary = [
-    card([0, True, "Player"], [], pygame.math.Vector3(2,1,1), jackalope, "Jackalope"),
+    card([0, True, "Player"], [], pygame.math.Vector3(100,100,1), jackalope, "Jackalope"),
     card([0, True, "Player"], [], pygame.math.Vector3(3,2,2), hugag, "Hugag"),
-    card([0, True, "Player"], ["Extinct+2"], pygame.math.Vector3(2,1,2), jackalope, "Thylacine"),
+    card([0, True, "Player"], ["Extinct+2"], pygame.math.Vector3(2,1,2), thylacine, "Thylacine"),
     card([0, True, "Player"], ["Rolling"], pygame.math.Vector3(1,1,2), hoopsnake, "Hoop Snake"),
     card([0, True, "Player"], ["Hide"], pygame.math.Vector3(5,2,2), jackalope, "Hidebehind"),
     card([0, True, "Player"], ["Mover Over"], pygame.math.Vector3(1,1,2), jackalope, "Ball-Tailed Cat"),
@@ -393,7 +403,7 @@ class stage:
 stages = [ #Her er hva du skal skrive inn for stagen i rekkefølge: Navnet på banen, Hvor mange "Waves" banen består av, Om det er noen tvunget fiender som skal spawne (fungerer ikke akkurat nå), farlighetsgrad og til slutt hvilke pools wavesene bruker og hvor mange tokens hver wave får
     #Vanskelighetsgrad Følger denne formen: 1 - Enkel / Starterbanene, 2 - Baner som kan være en liten trussel tidlig i spillet, 3 - Tidlige bosser og Middels vanskelige baner, 4 - Litt senere bosser og andre vanskelige baner, 5 - Farligste av alle.
     stage("First Level", 3, None, 1, [ #findpool() is pool used for fetching enemies for stage, next number is how many tokens can be used to spawn enemies
-        findpool("UlvKanin"), 7,
+        findpool("UlvKanin"), 2,
         findpool("Kanin"), 3,
         findpool("UlvKanin"), 4,
     ]),
@@ -431,11 +441,44 @@ stages = [ #Her er hva du skal skrive inn for stagen i rekkefølge: Navnet på b
     ]),
 ]
 
-for i in range(6):
-    if i == 1:
-        mapmarkers.append(mapmark(pygame.math.Vector2(0, i * 150), [], stages[i], False))
-    else:
-        mapmarkers.append(mapmark(pygame.math.Vector2(random.randint(-150, 150), random.randint(-60, 60) + i * 150), [], stages[i], False))
+class shop:
+    def __init__(self, type, level = 0, size = 3):
+        self.type = type
+        self.level = level
+        self.size = size
+
+
+        if self.type == "GetCards":
+            self.cards = []
+            shuffleddictionary = copy.copy(playercarddictionary)
+            random.shuffle(shuffleddictionary)
+            print(shuffleddictionary)
+            for i in range(size):
+                for card in shuffleddictionary:
+                    if card.cost >= self.level:
+                        if card in self.cards:
+                            pass
+                        else:
+                            self.cards.append(copy.copy(card))
+    
+
+def createmapmarkers(markeramount):
+    for i in range(markeramount):
+        if i == 1:
+            mapmarkers.append(mapmark(pygame.math.Vector2(0, i * 100), [], None, False))
+        else:
+            mapmarkers.append(mapmark(pygame.math.Vector2(random.randint(-250, 250), random.randint(-35, 35) + i * 100), [], None, False))
+    loops = 0
+    for marker in mapmarkers:
+        loops += 1
+        if loops % 2 == 0:
+            marker.stage = shop("GetCards") 
+            marker.sprite = pygame.image.load(r"Spillet\Media\markericons\getcards.png")
+        else:
+            marker.stage = copy.copy(stages[random.randint(0, len(stages)-1)])
+
+
+createmapmarkers(8)
 
 waves = []
 spawnedenemycards = []
@@ -456,8 +499,12 @@ def spawnwave(stage):
     global spawnedenemycards
 
     points = stage.pools[((currentwave+1)*2)-1]
-    
+    loops = 0
     while points > 0:
+        loops += 1
+        if loops >= 1024:
+            print("Infinite Recursion in Enemy Spawning, breaking while loop")
+            break
         if None in spawnedenemycards:
             chosenenemy = random.choice(stage.pools[((currentwave+1)*2)-2].enemies)
             while chosenenemy.cost > points:
@@ -472,25 +519,30 @@ def spawnwave(stage):
         else:
             chosenlane = random.randint(0,4)
             points += spawnedenemycards[chosenlane].cost
-
             mostexpensiveenemy = None
             excludedenemies = []
             for enemy in stage.pools[((currentwave+1)*2)-2].enemies:
+                if enemy.name in excludedenemies:
+                    print("Enemy %s is in excluded enemies") % enemy
                 if mostexpensiveenemy == None:
                     mostexpensiveenemy = enemy
                 elif enemy.cost > mostexpensiveenemy.cost:
                     if enemy.cost <= points:
                         mostexpensiveenemy = enemy
                         print("Grabbing most expensive enemy")
+                        print(mostexpensiveenemy.name)
                     else:
-                        excludedenemies.append(enemy)
+                        excludedenemies.append(enemy.name)
             if mostexpensiveenemy == None:
                 print("Error: Failed to find most expensive enemy")
-
-            spawnedenemycards[chosenlane] = copy.copy(mostexpensiveenemy)
-            spawnedenemycards[chosenlane].visualx = enemylanes[chosenlane].position.x
-            spawnedenemycards[chosenlane].visualy = enemylanes[chosenlane].position.y - 200
-            points -= chosenenemy.cost
+            else:
+                print("points before spawned = %s" % points)
+                
+                spawnedenemycards[chosenlane] = copy.copy(mostexpensiveenemy)
+                spawnedenemycards[chosenlane].visualx = enemylanes[chosenlane].position.x
+                spawnedenemycards[chosenlane].visualy = enemylanes[chosenlane].position.y - 200
+                points -= mostexpensiveenemy.cost
+                print("points after spawned = %s" % points)
 
             
     
@@ -508,6 +560,21 @@ def changephase(nextphase):
     global changingphase
     global gamephase
     changingphase = True
+    
+    if nextphase == 0:
+        global troverdighet
+        troverdighet = 10
+        global currentwave
+        currentwave = 0
+        gamephase = 0
+        random.shuffle(deck)
+        for i in range(4):
+            drawcard()
+        changingphase = False
+    if nextphase == 2:
+        gamephase = 2
+        changingphase = False
+    
     if nextphase == 1:
         
         gamephase = 1
@@ -521,16 +588,6 @@ def changephase(nextphase):
             if item != None:
                 item.lerpspeed = 0.5
                 item.x = -200 - random.randint(-50,50)
-        changingphase = False
-    if nextphase == 0:
-        global troverdighet
-        troverdighet = 10
-        global currentwave
-        currentwave = 0
-        gamephase = 0
-        random.shuffle(deck)
-        for i in range(4):
-            drawcard()
         changingphase = False
         
 
@@ -612,7 +669,7 @@ def finishattackphase():
             if marker.stage == currentstage:
                 marker.finished = True
         print("You win!")
-        pygame.image.save(screen, "Backgroundphase1.jpeg")
+        pygame.image.save(fakescreen, "Backgroundphase1.jpeg")
         heldcard == None
         changephase(1)
 
@@ -657,7 +714,7 @@ while True:
                 if event.key == pygame.K_1:
                     drawcard() #Husk å fjerne denne før du leverer spillet
                     print("Drawing Card")
-                if event.key == pygame.K_2:
+                if event.key == pygame.K_SPACE:
                     if attackphaseactive == False:
                         attackphase()
                         print("Attacking")
@@ -688,12 +745,17 @@ while True:
                             if pygame.mouse.get_pos()[0] < marker.visualposition.x + marker.sprite.get_width() / 2 and pygame.mouse.get_pos()[1] < marker.visualposition.y + marker.sprite.get_height() / 2:
                                 print("Hit Marker %s" % mapmarkers.index(marker))
                                 if marker.stage != None:
+                                    print("Marker has stage")
+                                    if mapmarkers.index(marker) == 0:
+                                        if marker.finished == False:
+                                            marker.load()
                                     for connectionmarker in mapmarkers:
                                         if marker in connectionmarker.connections:
+                                            print("Found Connection")
                                             if connectionmarker.finished == True and marker.finished == False:
-                                                changephase(0)
-                                                currentstage = marker.stage
-                                                spawnwave(currentstage)
+                                                marker.load()
+                                                print("Loading Marker")
+                                                
                                 break
                                                 
 
@@ -719,25 +781,25 @@ while True:
 
 
 
-        screen.fill(BG_COLOR)
+        fakescreen.fill(BG_COLOR)
 
         for lane in lanes:
-            lane.draw(screen)
+            lane.draw(fakescreen)
         for lane in enemylanes:
-            lane.draw(screen)
+            lane.draw(fakescreen)
         for playedcard in playedcards:
             if playedcard != None:
                 if changingphase == False and playedcard.detached == False:
                     playedcard.x = lanes[(playedcards.index(playedcard))].position.x + 2
                     playedcard.y = lanes[(playedcards.index(playedcard))].position.y + 2
-                playedcard.draw(screen)
+                playedcard.draw(fakescreen)
     
         for enemycard in spawnedenemycards:
             if enemycard != None:
                 if enemycard.detached == False:
                     enemycard.x = enemylanes[(spawnedenemycards.index(enemycard))].position.x+2
                     enemycard.y = enemylanes[(spawnedenemycards.index(enemycard))].position.y+2
-                enemycard.draw(screen)
+                enemycard.draw(fakescreen)
     
         for card in hand:
             if pygame.mouse.get_pos()[0] > card.x and pygame.mouse.get_pos()[1] > card.y:
@@ -745,27 +807,27 @@ while True:
                     if heldcard == None:
                         card.hover = True
             if not card == heldcard:
-                card.draw(screen)
+                card.draw(fakescreen)
         if not card == None:
             for card in hand:
                 if card == heldcard:
-                    card.draw(screen)
+                    card.draw(fakescreen)
         text_surface = font.render("HP: " + str(int(playerhp)) + "/10", True, WHITE)
         text_rect = text_surface.get_rect()
         text_rect.center = (100,20)
-        screen.blit(text_surface, text_rect)
+        fakescreen.blit(text_surface, text_rect)
         text_surface = font.render("Troverdighet: " + str(troverdighet) + "/10", True, WHITE)
         text_rect = text_surface.get_rect()
         text_rect.center = (100,40)
-        screen.blit(text_surface, text_rect)
+        fakescreen.blit(text_surface, text_rect)
 
 
     if gamephase == 1:
         backgroundimage = pygame.image.load("Backgroundphase1.jpeg")
-        screen.blit(backgroundimage, (0,0))
-        areamap.draw(screen)
+        fakescreen.blit(backgroundimage, (0,0))
+        areamap.draw(fakescreen)
         for marker in mapmarkers:
-            marker.draw(screen)
+            marker.draw(fakescreen)
 
 
     if gamephase == 2:
@@ -773,4 +835,6 @@ while True:
             print("at card shop")
 
     
+    screen.blit(pygame.transform.scale(fakescreen, screen.get_rect().size), (0, 0))
+
     pygame.display.flip()
