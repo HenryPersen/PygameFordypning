@@ -2,10 +2,11 @@ import pygame
 import sys
 import random
 import copy
+import os
 
 pygame.init()
 #Basic Pygame
-pygame.display.set_caption("Cryptoscam")
+pygame.display.set_caption("Cryptoscam: 358/2 Days")
 WIDTH, HEIGHT = 1000, 900
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.SCALED | pygame.RESIZABLE)
 clock = pygame.time.Clock()
@@ -23,14 +24,15 @@ handmargin = 200
 enemypoints = 3
 currentwave = 0
 currentstage = None
+currentmarker = None
 loops = 0
 attackphaseactive = False
 HANDHEIGHT = 300
-standardcardscale = 1.2
+standardcardscale = 1.0
 
 gamephase = 0
 changingphase = False
-currentshop = "NewCards"
+currentshop = None
 
 playerhp = 10
 troverdighet = 10
@@ -43,12 +45,22 @@ basiccard = pygame.image.load("Spillet\Media\Sprites\polaroidkort.png")
 lanesprite = pygame.image.load("Spillet\Media\Sprites\Lane.png")
 mapsprite = pygame.image.load("Spillet\Media\Sprites\mapv2.png")
 
+#Spillerkort Sprites
 jackalope = pygame.image.load("Spillet\Media\Sprites\polaroids\jackalope.png")
 hugag = pygame.image.load("Spillet\Media\Sprites\polaroids\hugag.png")
-kanin = pygame.image.load("Spillet\Media\Sprites\polaroids\Kanin.png")
-ulv = pygame.image.load(r"Spillet\Media\Sprites\polaroids\Ulv.png")
 hoopsnake = pygame.image.load(r"Spillet\Media\Sprites\polaroids\hoopsnake.png")
 thylacine = pygame.image.load(r"Spillet\Media\Sprites\polaroids\thylacine.png")
+jerseydevil = pygame.image.load(r"Spillet\Media\Sprites\polaroids\jerseydevil.png")
+wendigo = pygame.image.load(r"Spillet\Media\Sprites\polaroids\wendigo.png")
+
+#Fiendekort Sprites
+kanin = pygame.image.load("Spillet\Media\Sprites\polaroids\Kanin.png")
+ulv = pygame.image.load(r"Spillet\Media\Sprites\polaroids\Ulv.png")
+bjoorn = pygame.image.load(r"Spillet\Media\Sprites\polaroids\bjørn.png")
+jeger = pygame.image.load(r"Spillet\Media\Sprites\polaroids\jeger.png")
+
+#Ability Sprites
+
 
 
 #X Sprites
@@ -57,7 +69,7 @@ x2sprite = pygame.image.load(r"Spillet\Media\x\x2.png")
 x3sprite = pygame.image.load(r"Spillet\Media\x\x3.png")
 
 class timer:
-    def __init__(self, timeamount, resultfunction, usefunctionon, functionarguments = None):
+    def __init__(self, timeamount, resultfunction, usefunctionon = "None", functionarguments = None):
         self.timeamount = timeamount
         self.resultfunction = resultfunction
         self.usefunctionon = usefunctionon
@@ -133,10 +145,20 @@ class mapmark:
         surface.blit(self.sprite, (self.visualposition.x - self.sprite.get_width() / 2, self.visualposition.y - self.sprite.get_height() / 2))
     
     def load(self):
+        global currentmarker
+        global currentstage
+        currentstage = self.stage
         if isinstance(self.stage, stage):
             changephase(0)
-            currentstage = self.stage
+            currentmarker = self
             spawnwave(currentstage)
+        elif isinstance(self.stage, shop):
+            print("Clicked on Shop")
+            global currentshop
+            currentshop = self.stage
+            currentmarker = self
+            changephase(2)
+            
         
 
 mapmarkers = []
@@ -182,6 +204,11 @@ class card:
                 surface.blit(pygame.transform.scale(basiccard, (144 / self.cardscale, 296 / self.cardscale) ), (self.visualx, self.visualy))
             
             self.addtext(surface, 4)
+        loops = 0
+        for ability in self.abilities:
+            addedtex = pygame.image.load("Spillet/abilityicons/" + str(ability) + ".png")
+            surface.blit(pygame.transform.scale(addedtex, (32 / self.cardscale, 32 /self.cardscale)), (self.visualx + 90 / self.cardscale, self.visualy + 195 / self.cardscale + (loops * 35)))
+            loops += 1
 
         self.hover = False
             
@@ -236,21 +263,24 @@ class card:
         else:
             self.y += 50
         
-    def takedamage(self, damageamount):
+    def takedamage(self, damageamount, attacker = None):
         self.hp -= damageamount
+
         for ability in self.abilities:
             if ability == "Hide":
-                print("Hiding Hidebehind")
                 playedcards[playedcards.index(self)] = None
                 hand.append(self)
                 self.y = HEIGHT-HANDHEIGHT
+            if ability == "Spiky+1":
+                if attacker != None:
+                    attacker.hp -= 1
 
     def attack(self, orderinlane):
         self.orderinlane = orderinlane
         self.attackanimation()
         if(self.side == "Player"): #SpillerAngrep
             if spawnedenemycards[orderinlane] != None:
-                spawnedenemycards[orderinlane].takedamage(self.dmg)
+                spawnedenemycards[orderinlane].takedamage(self.dmg, self)
                 
 
         #Attack-Abilities
@@ -269,17 +299,26 @@ class card:
 
         if(self.side == "Enemy"):
             if playedcards[orderinlane] != None:
-                playedcards[orderinlane].takedamage(self.dmg)
+                playedcards[orderinlane].takedamage(self.dmg, self)
             else:
                 damageplayer(self.dmg)
 
+#Card Creation Info
+#Første Array er info, [Rarity, Spillt / i hånden, Spiller eller fiende]
+#Andre array er abilites
+#første Vector 3 er stats
+#Bildefil er etter det
+#Navn på kortet til slutt
+
 playercarddictionary = [
-    card([0, True, "Player"], [], pygame.math.Vector3(100,100,1), jackalope, "Jackalope"),
+    card([0, True, "Player"], [], pygame.math.Vector3(2,1,1), jackalope, "Jackalope"),
     card([0, True, "Player"], [], pygame.math.Vector3(3,2,2), hugag, "Hugag"),
     card([0, True, "Player"], ["Extinct+2"], pygame.math.Vector3(2,1,2), thylacine, "Thylacine"),
     card([0, True, "Player"], ["Rolling"], pygame.math.Vector3(1,1,2), hoopsnake, "Hoop Snake"),
-    card([0, True, "Player"], ["Hide"], pygame.math.Vector3(5,2,2), jackalope, "Hidebehind"),
-    card([0, True, "Player"], ["Mover Over"], pygame.math.Vector3(1,1,2), jackalope, "Ball-Tailed Cat"),
+    card([0, True, "Player"], ["Hide"], pygame.math.Vector3(5,2,3), jackalope, "Hidebehind"),
+    card([0, True, "Player"], ["Move Over"], pygame.math.Vector3(1,1,2), jackalope, "Ball-Tailed Cat"),
+    card([0, True, "Player"], [], pygame.math.Vector3(4,4,3), jerseydevil, "Jersey Devil"),
+    card([0, True, "Player"], ["Healing+2", "Spiky+1"], pygame.math.Vector3(3,1,4), jackalope, "Cactus Cat"),
 ]
 def findplayercard(cardname):
     for card in playercarddictionary:
@@ -292,8 +331,9 @@ def findplayercard(cardname):
 enemycarddictionary = [
     card([0, True, "Enemy"], [], pygame.math.Vector3(2, 1, 1), kanin, "Kanin"),
     card([0, True, "Enemy"], [], pygame.math.Vector3(2, 2, 2), ulv, "Ulv"),
-    card([0, True, "Enemy"], [], pygame.math.Vector3(4, 3, 4), ulv, "Bjørn"),
-    card([0, True, "Enemy"], ["Rifle"], pygame.math.Vector3(6, 2, 5), ulv, "Jeger"),
+    card([0, True, "Enemy"], [], pygame.math.Vector3(4, 3, 4), bjoorn, "Bjørn"),
+    card([0, True, "Enemy"], ["Rifle"], pygame.math.Vector3(6, 2, 5), jeger, "Jeger"),
+    card([0, True, "Enemy"], ["Hunt"], pygame.math.Vector3(8, 8, 6), wendigo, "Wendigo"),
 ]
 def findenemycard(cardname):
     for card in enemycarddictionary:
@@ -311,12 +351,7 @@ def damageplayer(damage):
         pygame.quit()
         sys.exit()
 
-#Card Creation Info
-#Første Array er info, [Rarity, Spillt / i hånden, Spiller eller fiende]
-#Andre array er abilites
-#første Vector 3 er stats
-#Bildefil er etter det
-#Navn på kortet til slutt
+
 
 deck = [
     findplayercard("Jackalope"),
@@ -324,12 +359,12 @@ deck = [
     findplayercard("Jackalope"),
     findplayercard("Jackalope"),
     findplayercard("Jackalope"),
+    findplayercard("Jackalope"),
+    findplayercard("Jackalope"),
     findplayercard("Hugag"),
     findplayercard("Hugag"),
     findplayercard("Hugag"),
-    findplayercard("Thylacine"),
-    findplayercard("Hoop Snake"),
-    findplayercard("Hidebehind")
+    findplayercard("Hugag"),
 ]
 random.shuffle(deck)
 
@@ -374,6 +409,10 @@ enemypools = [
         findenemycard("Ulv"),
         findenemycard("Jeger")
     ]),
+    enemypool("WendigoUlv", [
+        findenemycard("Ulv"),
+        findenemycard("Wendigo")
+    ])
 ]
 
 def findpool(poolname):
@@ -403,7 +442,7 @@ class stage:
 stages = [ #Her er hva du skal skrive inn for stagen i rekkefølge: Navnet på banen, Hvor mange "Waves" banen består av, Om det er noen tvunget fiender som skal spawne (fungerer ikke akkurat nå), farlighetsgrad og til slutt hvilke pools wavesene bruker og hvor mange tokens hver wave får
     #Vanskelighetsgrad Følger denne formen: 1 - Enkel / Starterbanene, 2 - Baner som kan være en liten trussel tidlig i spillet, 3 - Tidlige bosser og Middels vanskelige baner, 4 - Litt senere bosser og andre vanskelige baner, 5 - Farligste av alle.
     stage("First Level", 3, None, 1, [ #findpool() is pool used for fetching enemies for stage, next number is how many tokens can be used to spawn enemies
-        findpool("UlvKanin"), 2,
+        findpool("Kanin"), 2,
         findpool("Kanin"), 3,
         findpool("UlvKanin"), 4,
     ]),
@@ -422,27 +461,19 @@ stages = [ #Her er hva du skal skrive inn for stagen i rekkefølge: Navnet på b
         findpool("Kanin"), 2,
         findpool("JegerUlv"), 7,
     ]),
-    stage("Fifth Level", 10, None, 1, [
-        findpool("JegerUlv"), 7,
-        findpool("JegerUlv"), 7,
-        findpool("JegerUlv"), 7,
-        findpool("JegerUlv"), 7,
-        findpool("JegerUlv"), 7,
-        findpool("JegerUlv"), 7,
-        findpool("JegerUlv"), 7,
-        findpool("JegerUlv"), 10,
-        findpool("JegerUlv"), 12,
-        findpool("JegerUlv"), 15,
-    ]),
     stage("Sixth Level", 3, None, 1, [
-        findpool("Kanin"), 2,
-        findpool("Kanin"), 3,
         findpool("UlvKanin"), 4,
+        findpool("BjørnUlvKanin"), 5,
+        findpool("BjørnUlvKanin"), 10,
+    ]),
+    stage("WendigoBoss", 2, [findenemycard("Wendigo"), 2], 2, [
+        findpool("BjørnUlvKanin"), 6,
+        findpool("BjørnUlv"), 4,
     ]),
 ]
 
 class shop:
-    def __init__(self, type, level = 0, size = 3):
+    def __init__(self, type, level = 10, size = 3):
         self.type = type
         self.level = level
         self.size = size
@@ -450,17 +481,12 @@ class shop:
 
         if self.type == "GetCards":
             self.cards = []
-            shuffleddictionary = copy.copy(playercarddictionary)
-            random.shuffle(shuffleddictionary)
-            print(shuffleddictionary)
-            for i in range(size):
-                for card in shuffleddictionary:
-                    if card.cost >= self.level:
-                        if card in self.cards:
-                            pass
-                        else:
-                            self.cards.append(copy.copy(card))
-    
+            while len(self.cards) < self.size:
+                addcard = playercarddictionary[random.randint(0, len(playercarddictionary)-1)]
+                if addcard in self.cards:
+                    pass
+                else:
+                    self.cards.append(addcard)
 
 def createmapmarkers(markeramount):
     for i in range(markeramount):
@@ -471,14 +497,22 @@ def createmapmarkers(markeramount):
     loops = 0
     for marker in mapmarkers:
         loops += 1
+        if loops == markeramount:
+            marker.stage = copy.copy(findstage("WendigoBoss"))
         if loops % 2 == 0:
-            marker.stage = shop("GetCards") 
-            marker.sprite = pygame.image.load(r"Spillet\Media\markericons\getcards.png")
-        else:
             marker.stage = copy.copy(stages[random.randint(0, len(stages)-1)])
+        else:
+            rannum = random.randint(0,2)
+            if rannum == 0:
+                marker.stage = shop("GetCards")
+                marker.sprite = pygame.image.load(r"Spillet\Media\markericons\getcards.png")
+            elif rannum == 1:
+                marker.stage = shop("BoostCards")
+            elif rannum == 2:
+                marker.stage = shop("Transfer")
 
 
-createmapmarkers(8)
+createmapmarkers(10)
 
 waves = []
 spawnedenemycards = []
@@ -499,6 +533,7 @@ def spawnwave(stage):
     global spawnedenemycards
 
     points = stage.pools[((currentwave+1)*2)-1]
+
     loops = 0
     while points > 0:
         loops += 1
@@ -543,7 +578,14 @@ def spawnwave(stage):
                 spawnedenemycards[chosenlane].visualy = enemylanes[chosenlane].position.y - 200
                 points -= mostexpensiveenemy.cost
                 print("points after spawned = %s" % points)
-
+    
+    if stage.forcedenemies != None:
+        print("Attempting to spawn forced enemies")
+        if currentwave == stage.forcedenemies[1]-1:
+            if None in spawnedenemycards:
+                spawnedenemycards[spawnedenemycards.index(None)] = stage.forcedenemies[0]
+            else:
+                spawnedenemycards[random.randint(0,4)] = stage.forcedenemies[0]
             
     
 
@@ -574,11 +616,15 @@ def changephase(nextphase):
     if nextphase == 2:
         gamephase = 2
         changingphase = False
+        for card in currentshop.cards:
+            card.y = 100
     
     if nextphase == 1:
-        
+        for card in deck:
+            card.y = HEIGHT-HANDHEIGHT
+            card.visualy = HEIGHT-HANDHEIGHT
         gamephase = 1
-        areamap.position.y = mapsprite.get_height() * -1
+        areamap.position.y = -mapsprite.get_height()
         areamap.velocity.y = 35
         for item in hand:
             item.lerpspeed = 0.5
@@ -635,6 +681,11 @@ def finishattackphase():
             for ability in card.abilities:
                 if ability == "Rolling":
                     card.dmg += 1
+                if ability == "Healing+2":
+                    if playedcards[playedcards.index(card)+1] != None:
+                        playedcards[playedcards.index(card)+1].hp += 2
+                        if playedcards[playedcards.index(card)+1].hp > playedcards[playedcards.index(card)+1].maxhp:
+                            playedcards[playedcards.index(card)+1].hp = playedcards[playedcards.index(card)+1].maxhp
     
 
         #Sjekker om noen fiender er igjen
@@ -665,9 +716,9 @@ def finishattackphase():
             i.hp = i.maxhp
             i.dmg = i.ogdmg
             i.cost = i.ogcost
-        for marker in mapmarkers:
-            if marker.stage == currentstage:
-                marker.finished = True
+        global currentmarker
+        if currentmarker != None:
+            currentmarker.finished = True
         print("You win!")
         pygame.image.save(fakescreen, "Backgroundphase1.jpeg")
         heldcard == None
@@ -700,6 +751,11 @@ for i in range(4):
 currentstage = stages[0]
 spawnwave(currentstage)
 
+def delayedphase1():
+    pygame.image.save(fakescreen, "Backgroundphase1.jpeg")
+    changephase(1)
+
+
 
 while True:
     for timekeeper in timers:
@@ -716,8 +772,16 @@ while True:
                     print("Drawing Card")
                 if event.key == pygame.K_SPACE:
                     if attackphaseactive == False:
+                        loops = 0
                         attackphase()
                         print("Attacking")
+                if event.key == pygame.K_2:
+                    #for enemycard in spawnedenemycards:
+                        #if enemycard != None:
+                            #enemycard.hp = 0
+                            #enemycard.dmg = 0
+                    pass
+                    
             if event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
                     if heldcard != None and attackphaseactive == False:
@@ -733,6 +797,14 @@ while True:
                                         for ability in heldcard.abilities:
                                             if ability == "Extinct+2":
                                                 troverdighet += 2
+                                        for card in spawnedenemycards:
+                                            if card != None:
+                                                for ability in card.abilities:
+                                                    if ability == "Hunt":
+                                                        if spawnedenemycards[lanes.index(lane)] == None:
+                                                            spawnedenemycards[spawnedenemycards.index(card)] = None
+                                                            spawnedenemycards[lanes.index(lane)] = card
+
                 heldcard = None
                 originalcardpos = None
         if gamephase == 1:
@@ -757,6 +829,19 @@ while True:
                                                 print("Loading Marker")
                                                 
                                 break
+        if gamephase == 2:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    if currentshop.type == "GetCards":
+                        for card in currentshop.cards:
+                            if pygame.mouse.get_pos()[0] > card.visualx and pygame.mouse.get_pos()[1] > card.visualy:
+                                if pygame.mouse.get_pos()[0] < card.visualx + basiccard.get_width() and pygame.mouse.get_pos()[1] < card.visualy + basiccard.get_height():
+                                    deck.append(copy.copy(card))
+                                    card.y += HEIGHT + 150
+                                    currentmarker.finished = True
+                                    timers.append(timer(100, delayedphase1))
+
+                                    
                                                 
 
     if gamephase == 0:
@@ -820,10 +905,15 @@ while True:
         text_rect = text_surface.get_rect()
         text_rect.center = (100,40)
         fakescreen.blit(text_surface, text_rect)
+        text_surface = font.render("Stagename: " + currentstage.name, True, WHITE)
+        text_rect = text_surface.get_rect()
+        text_rect.center = (WIDTH-200,40)
+        fakescreen.blit(text_surface, text_rect)
 
 
     if gamephase == 1:
-        backgroundimage = pygame.image.load("Backgroundphase1.jpeg")
+        if os.path.isfile("Backgroundphase1.jpeg"):
+            backgroundimage = pygame.image.load("Backgroundphase1.jpeg")
         fakescreen.blit(backgroundimage, (0,0))
         areamap.draw(fakescreen)
         for marker in mapmarkers:
@@ -831,8 +921,14 @@ while True:
 
 
     if gamephase == 2:
-        if currentshop == "NewCards":
-            print("at card shop")
+        fakescreen.fill(BG_COLOR)
+        if currentshop.type == "GetCards":
+            loops = 0
+            for card in currentshop.cards:
+                card.draw(fakescreen)
+                card.x = ((WIDTH - 200) / currentshop.size) * loops + 100 + basiccard.get_width() / 2
+                loops += 1
+
 
     
     screen.blit(pygame.transform.scale(fakescreen, screen.get_rect().size), (0, 0))
