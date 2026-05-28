@@ -383,6 +383,13 @@ class lane:
     def draw(self, surface):
         surface.blit(lanesprite, (self.position.x, self.position.y))
 
+    def __call__(self, position, laneinfo, PorE, cardinlane):
+        self.position = position
+        self.laneinfo = laneinfo
+        self.card = cardinlane
+        self.pore = PorE
+        return copy.copy(self)
+
 class enemypool:
     def __init__(self, name, enemies):
         self.name = name
@@ -487,6 +494,14 @@ class shop:
                     pass
                 else:
                     self.cards.append(addcard)
+        if self.type == "BoostCards":
+            rannum = random.randint(0,2)
+            if rannum == 0:
+                self.boosttype = "dmg"
+            if rannum == 1:
+                self.boosttype = "hp"
+            if rannum == 2:
+                self.boosttype = "cost"
 
 def createmapmarkers(markeramount):
     for i in range(markeramount):
@@ -622,22 +637,22 @@ def changephase(nextphase):
     if nextphase == 2:
         global shopslots
         gamephase = 2
-        changingphase = False
         if currentshop.type == "GetCards":
             for card in currentshop.cards:
                 card.y = 100
         else:
             shopslots = []
             if currentshop.type == "BoostCards":
-                shopslots.append(lane(pygame.math.Vector2((WIDTH-50 * 2)+50, 350), "Standard", "Player", None))
+                shopslots.append(lane(pygame.math.Vector2((WIDTH / 2), 100), "Standard", "Player", None))
             else:
                 for i in range(2):
-                    shopslots.append(lane(pygame.math.Vector2(((WIDTH-50) * 2)+50 * i, 350), "Standard", "Player", None))
+                    shopslots.append(lane(pygame.math.Vector2((WIDTH / 3) * i + 75, 100), "Standard", "Player", None))
             for i in range(len(deck)):
                 drawcard()
             for card in hand:
                 card.y = HEIGHT-HANDHEIGHT
                 card.visualy = HEIGHT-HANDHEIGHT
+            changingphase = False
     
     if nextphase == 1:
         for card in deck:
@@ -796,10 +811,11 @@ while True:
                         attackphase()
                         print("Attacking")
                 if event.key == pygame.K_2:
-                    #for enemycard in spawnedenemycards:
-                        #if enemycard != None:
-                            #enemycard.hp = 0
-                            #enemycard.dmg = 0
+                    for enemycard in spawnedenemycards:
+                        if enemycard != None:
+                            enemycard.hp = 0
+                            enemycard.dmg = 0
+                            checkhealth()
                     pass
                     
             if event.type == pygame.MOUSEBUTTONUP:
@@ -827,6 +843,7 @@ while True:
 
                 heldcard = None
                 originalcardpos = None
+        
         if gamephase == 1:
             if event.type == pygame.MOUSEWHEEL:
                 areamap.velocity.y += event.y
@@ -849,7 +866,29 @@ while True:
                                                 print("Loading Marker")
                                                 
                                 break
+        
         if gamephase == 2:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    if shopslots[0].card != None:
+                        if currentshop.type == "BoostCards":
+                            if currentshop.boosttype == "dmg":
+                                shopslots[0].card.dmg += 1
+                                shopslots[0].card.ogdmg += 1
+                            if currentshop.boosttype == "hp":
+                                shopslots[0].card.hp += 1
+                                shopslots[0].card.maxhp += 1
+                            if currentshop.boosttype == "cost":
+                                shopslots[0].card.cost -= 1
+                                shopslots[0].card.ogcost -= 1
+                            currentmarker.finished = True
+                            shopslots = []
+                            changephase(1)
+                        if currentshop.type == "Transfer":
+                            currentmarker.finished = True
+                            shopslots = []
+                            changephase(1)
+
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     if currentshop.type == "GetCards":
@@ -860,15 +899,43 @@ while True:
                                     card.y += HEIGHT + 150
                                     currentmarker.finished = True
                                     timers.append(timer(100, delayedphase1))
+                    else:
+                        for card in reversed(hand):
+                            if card == heldcard or heldcard == None:
+                                if pygame.mouse.get_pos()[0] > card.visualx and pygame.mouse.get_pos()[1] > card.visualy:
+                                    if pygame.mouse.get_pos()[0] < card.visualx + basiccard.get_width() and pygame.mouse.get_pos()[1] < card.visualy + basiccard.get_height():
+                                        card.visualx = pygame.mouse.get_pos()[0] - (basiccard.get_width() / 2)
+                                        card.visualy = pygame.mouse.get_pos()[1] - (basiccard.get_height() / 2)
+                                        heldcard = card
+                        for lane in shopslots:
+                            card = lane.card
+                            if card != None:
+                                if pygame.mouse.get_pos()[0] > card.visualx and pygame.mouse.get_pos()[1] > card.visualy:
+                                    if pygame.mouse.get_pos()[0] < card.visualx + basiccard.get_width() and pygame.mouse.get_pos()[1] < card.visualy + basiccard.get_height():
+                                        card.visualx = pygame.mouse.get_pos()[0] - (basiccard.get_width() / 2)
+                                        card.visualy = pygame.mouse.get_pos()[1] - (basiccard.get_height() / 2)
+                                        heldcard = card
+                                        heldcard.detached = True
             if event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
                     if heldcard != None:
                         for lane in shopslots:
                             if pygame.mouse.get_pos()[0] > lane.position.x and pygame.mouse.get_pos()[1] > lane.position.y:
                                 if pygame.mouse.get_pos()[0] < lane.position.x + lanesprite.get_width() and pygame.mouse.get_pos()[1] < lane.position.y + lanesprite.get_height():
-                                    if heldcard.cost <= troverdighet and playedcards[lanes.index(lane)] == None:
-                                        lane.cardinlane = heldcard
+                                    if playedcards[shopslots.index(lane)] == None:
                                         hand.remove(heldcard)
+                                        lane.card = heldcard
+                                        heldcard = None
+                                        originalcardpos = None
+                                        break
+                        if lane.card == heldcard:
+                            hand.append(lane.card)
+                            lane.card.y = HEIGHT-HANDHEIGHT
+                            lane.card = None
+                            
+                heldcard = None
+                originalcardpos = None
+                
 
                                     
                                                 
@@ -889,9 +956,9 @@ while True:
                             card.visualx = pygame.mouse.get_pos()[0] - (basiccard.get_width() / 2)
                             card.visualy = pygame.mouse.get_pos()[1] - (basiccard.get_height() / 2)
                             heldcard = card
-        if heldcard != None:
-            heldcard.visualx = pygame.mouse.get_pos()[0] - (basiccard.get_width() / 2)
-            heldcard.visualy = pygame.mouse.get_pos()[1] - (basiccard.get_height() / 2)
+            if heldcard != None:
+                heldcard.visualx = pygame.mouse.get_pos()[0] - (basiccard.get_width() / 2)
+                heldcard.visualy = pygame.mouse.get_pos()[1] - (basiccard.get_height() / 2)
 
 
 
@@ -950,23 +1017,56 @@ while True:
 
 
     if gamephase == 2:
+        handloops = 0
         for card in hand:
+            if pygame.mouse.get_pos()[0] > card.x and pygame.mouse.get_pos()[1] > card.y:
+                if pygame.mouse.get_pos()[0] < card.x + basiccard.get_width() and pygame.mouse.get_pos()[1] < card.y + basiccard.get_height():
+                    if heldcard == None:
+                        card.hover = True
             if changingphase == False:
                 card.order = handloops
                 handloops+= 1
-                card.x = ((WIDTH-handmargin * 2) / len(hand)) * card.order + handmargin
+                if card != heldcard:
+                    card.x = ((WIDTH-handmargin * 2) / len(hand)) * card.order + handmargin
         fakescreen.fill(BG_COLOR)
+        if heldcard != None:
+            heldcard.visualx = pygame.mouse.get_pos()[0] - (basiccard.get_width() / 2)
+            heldcard.visualy = pygame.mouse.get_pos()[1] - (basiccard.get_height() / 2)
         for lane in shopslots:
-            lane.draw()
+            lane.draw(fakescreen)
+            
         if currentshop.type == "GetCards":
+            text_surface = font.render("Pick a card, any card (and keep it)", True, WHITE)
+            text_rect = text_surface.get_rect()
+            text_rect.center = (WIDTH/2,20)
+            fakescreen.blit(text_surface, text_rect)
             loops = 0
             for card in currentshop.cards:
                 card.draw(fakescreen)
                 card.x = ((WIDTH - 200) / currentshop.size) * loops + 100 + basiccard.get_width() / 2
                 loops += 1
-        if currentshop.type == "BoostCards":
+        if currentshop.type == "BoostCards" or currentshop.type == "Transfer":
             for lane in shopslots:
-                lane.cardinlane.draw(fakescreen)
+                if lane.card != None:
+                    lane.card.draw(fakescreen)
+                    lane.card.x = lane.position.x + 2
+                    lane.card.y = lane.position.y + 2
+            if currentshop.type == "BoostCards":
+                text_surface = font.render("Boost Type is " + str(currentshop.boosttype), True, WHITE)
+                text_rect = text_surface.get_rect()
+                text_rect.center = (WIDTH/2,20)
+                fakescreen.blit(text_surface, text_rect)
+            else:
+                text_surface = font.render("Transfer abilites from left card to right", True, WHITE)
+                text_rect = text_surface.get_rect()
+                text_rect.center = (WIDTH/2,20)
+                fakescreen.blit(text_surface, text_rect)
+            text_surface = font.render("Press Space to confirm", True, WHITE)
+            text_rect = text_surface.get_rect()
+            text_rect.center = (WIDTH/2,45)
+            fakescreen.blit(text_surface, text_rect)
+
+
             for card in hand:
                 card.draw(fakescreen)
 
