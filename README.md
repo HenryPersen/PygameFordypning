@@ -102,3 +102,40 @@ Liv: 6
 Skade: 3 for nå, men kan senkes til 2
 Gevær: Hver gang den angriper får den 
 
+
+
+Sluttlogg:
+Jeg logget ikke så mye gjennom prosjektet så jeg skriver dette her på slutten for å forklare hvordan alt fungerer
+
+Den generelle ideen til spillet er et Inscryption (https://store.steampowered.com/app/1092790/Inscryption/) inspirert kortspill basert
+på amerikansk folketro og kryptozoologi. Ideen er at spillet er satt på 70-80 tallet i amerika og du er en kryptozoolog som har fått betaling
+fra staten for å bevise at skapningene eksisterer. For å spille kort koster det troverdighet, du tjener tilbake 2 troverdighet hver runde.
+
+Gjennom spillet samler du flere kort og kan forandre på dine tidligere kort.
+Det finnes fortsatt 2 debug keybinds i spillet som jeg brukte for å teste spillet.
+hvis du trykker 1 trekker du et kort
+hvis du trykker 2 gjør den at alle fiender gjør 0 skade og har 0 liv.
+Trykk på space for å starte at kortene slåss.
+Etter du har drept alle wavesene med fiender kommer et kart ned der du kan trykke på neste og bruke mushjulet for å bevege kartet opp og ned
+
+Den grafiske stilen er basert på found-footage som ofte er tilknyttet til cryptozoologi. Kortet er polaroider fordi de skal liksom være bevis på at skapningene eksisterer. Tidligere var det pixel art, men jeg byttet til photoshopet bilder som jeg tenkte passet bedre.
+
+Forklaring av koden:
+Mesteparten av koden består av classes. Den viktigste er classen er kortene som inneholder all informasjon kortene trenger, som posisjon, stats og alt annet.
+Det er en class for lanesene der man kan klare å plassere alle kortene.
+Jeg lagde en timer class som kan kjøre funksjoner etter de er ferdig, som hovedsaklig er brukt for å animere kortene via et keyframes-aktig system.
+Spillet er også delt opp i "Phases" som deler opp i input og rendering i slåss delen, kartet og butikkene. Selv om funksjonen for angrep heter "Attack Phase" er den ikke en phase i koden. 
+En av de tingene jeg er mest stolt av at jeg gjorde var at jeg ville at tingene fra butikkfasen og slåssfasen skulle bli igjen på bakgrunnen når kartet er der, så istedenfor å måtte rendere alt og lage massevis av problemer tar spillet et screenshot og putter det som bakgrunnen. Dette leder til at spillet kræsjer noen sjeldne ganger fordi den ikke finner filen, selv når den sjekker at filen er der før den legger til bakgrunnen.
+
+Fiender blir spawnet via pools og tokens. Dette var inspirert av systemet til Risk of Rain 2, der vi har en liste med fiender som kan spawnes og hvor mange tokens vi kan bruke for å spawne de. Dette har på spesifikt "Fourth Level" kræsjet noen sjeldne ganger, men fungerer ellers. Disse poolsene er tilkoblet til stagesene og inkluderer muligheten til å ha tvunget fiender. Jeg rakk ikke å ordentlig fikse et problem med tvungede fiender som er at når de spawner på nytt resettes ikke hp-en deres.
+Ellers håper jeg at de 1100 linjene med koden kan forklare seg selv ihvertfall litt siden jeg er for lat for å skrive så mye mer.
+
+
+Hvis jeg skulle jobbet lengre med prosjektet hadde jeg gjort dette:
+1. Løse resten av bugsene i spillet
+2. Flere vanskelighetsgrader, kort, fiender og generelt content.
+3. Hvis jeg hadde spesielt god tid, vurdert å kode spillet igjen helt fra bunnen av (og hvis mulig kanskje i en ordentlig engine)
+
+
+
+også feedback jeg fikk fra playtesting var bare løs bugs og spillet er gøy. ingenting mer å skrive om

@@ -59,8 +59,6 @@ ulv = pygame.image.load(r"Spillet\Media\Sprites\polaroids\Ulv.png")
 bjoorn = pygame.image.load(r"Spillet\Media\Sprites\polaroids\bjørn.png")
 jeger = pygame.image.load(r"Spillet\Media\Sprites\polaroids\jeger.png")
 
-#Ability Sprites
-
 
 
 #X Sprites
