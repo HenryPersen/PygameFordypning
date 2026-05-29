@@ -7,7 +7,7 @@ import os
 pygame.init()
 #Basic Pygame
 pygame.display.set_caption("Cryptoscam: 358/2 Days")
-WIDTH, HEIGHT = 1000, 900
+WIDTH, HEIGHT = 1000, 800
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.SCALED | pygame.RESIZABLE)
 clock = pygame.time.Clock()
 fakescreen = screen.copy()
@@ -19,16 +19,16 @@ game_speed = 1
 holding_card = False
 heldcard = None
 hoveredcard = None
-originalcardpos = None
 handmargin = 200
 enemypoints = 3
 currentwave = 0
 currentstage = None
 currentmarker = None
+currentdifficulty = 1
 loops = 0
 attackphaseactive = False
 HANDHEIGHT = 300
-standardcardscale = 1.0
+standardcardscale = 1.2
 
 gamephase = 0
 changingphase = False
@@ -161,7 +161,8 @@ class mapmark:
             
         
 
-mapmarkers = []
+mapmarkers = [
+]
 
 
 
@@ -200,8 +201,8 @@ class card:
         self.visualx = pygame.math.lerp(self.visualx, self.x, game_speed/12 * self.lerpspeed)
         if self.played:
             surface.blit(pygame.transform.scale(self.image, (125 / self.cardscale, 125 / self.cardscale)), (self.visualx+(12 / self.cardscale), self.visualy+(10 / self.cardscale)))
-            if self.rarity == 0:
-                surface.blit(pygame.transform.scale(basiccard, (144 / self.cardscale, 296 / self.cardscale) ), (self.visualx, self.visualy))
+            
+            surface.blit(pygame.transform.scale(basiccard, (144 / self.cardscale, 296 / self.cardscale) ), (self.visualx, self.visualy))
             
             self.addtext(surface, 4)
         loops = 0
@@ -302,6 +303,13 @@ class card:
                 playedcards[orderinlane].takedamage(self.dmg, self)
             else:
                 damageplayer(self.dmg)
+    
+    def print(self):
+        print(self.abilities)
+    
+    def addability(self, ability):
+        if ability not in self.abilities:
+            self.abilities.append(ability)
 
 #Card Creation Info
 #Første Array er info, [Rarity, Spillt / i hånden, Spiller eller fiende]
@@ -311,18 +319,19 @@ class card:
 #Navn på kortet til slutt
 
 playercarddictionary = [
-    card([0, True, "Player"], [], pygame.math.Vector3(2,1,1), jackalope, "Jackalope"),
-    card([0, True, "Player"], [], pygame.math.Vector3(3,2,2), hugag, "Hugag"),
-    card([0, True, "Player"], ["Extinct+2"], pygame.math.Vector3(2,1,2), thylacine, "Thylacine"),
-    card([0, True, "Player"], ["Rolling"], pygame.math.Vector3(1,1,2), hoopsnake, "Hoop Snake"),
-    card([0, True, "Player"], ["Hide"], pygame.math.Vector3(5,2,3), jackalope, "Hidebehind"),
-    card([0, True, "Player"], ["Move Over"], pygame.math.Vector3(1,1,2), jackalope, "Ball-Tailed Cat"),
-    card([0, True, "Player"], [], pygame.math.Vector3(4,4,3), jerseydevil, "Jersey Devil"),
-    card([0, True, "Player"], ["Healing+2", "Spiky+1"], pygame.math.Vector3(3,1,4), jackalope, "Cactus Cat"),
+    card([1, True, "Player"], [], pygame.math.Vector3(2,1,1), jackalope, "Jackalope"),
+    card([1, True, "Player"], [], pygame.math.Vector3(3,2,2), hugag, "Hugag"),
+    card([1, True, "Player"], ["Extinct+2"], pygame.math.Vector3(2,1,2), thylacine, "Thylacine"),
+    card([1, True, "Player"], ["Rolling"], pygame.math.Vector3(1,1,2), hoopsnake, "Hoop Snake"),
+    card([2, True, "Player"], ["Hide"], pygame.math.Vector3(5,2,3), jackalope, "Hidebehind"),
+    card([1, True, "Player"], ["Move Over"], pygame.math.Vector3(1,1,2), jackalope, "Ball-Tailed Cat"),
+    card([1, True, "Player"], [], pygame.math.Vector3(4,4,3), jerseydevil, "Jersey Devil"),
+    card([2, True, "Player"], ["Healing+2", "Spiky+1"], pygame.math.Vector3(3,1,4), jackalope, "Cactus Cat"),
 ]
 def findplayercard(cardname):
     for card in playercarddictionary:
         if card.name == cardname:
+            card.abilities = copy.deepcopy(card.abilities)
             return copy.copy(card)
     print("Error, found no player card with name %s" % cardname)
     sys.exit()
@@ -360,7 +369,8 @@ deck = [
     findplayercard("Jackalope"),
     findplayercard("Jackalope"),
     findplayercard("Jackalope"),
-    findplayercard("Jackalope"),
+    findplayercard("Hoop Snake"),
+    findplayercard("Ball-Tailed Cat"),
     findplayercard("Hugag"),
     findplayercard("Hugag"),
     findplayercard("Hugag"),
@@ -382,13 +392,6 @@ class lane:
     
     def draw(self, surface):
         surface.blit(lanesprite, (self.position.x, self.position.y))
-
-    def __call__(self, position, laneinfo, PorE, cardinlane):
-        self.position = position
-        self.laneinfo = laneinfo
-        self.card = cardinlane
-        self.pore = PorE
-        return copy.copy(self)
 
 class enemypool:
     def __init__(self, name, enemies):
@@ -471,7 +474,7 @@ stages = [ #Her er hva du skal skrive inn for stagen i rekkefølge: Navnet på b
     stage("Sixth Level", 3, None, 1, [
         findpool("UlvKanin"), 4,
         findpool("BjørnUlvKanin"), 5,
-        findpool("BjørnUlvKanin"), 10,
+        findpool("BjørnUlvKanin"), 7,
     ]),
     stage("WendigoBoss", 2, [findenemycard("Wendigo"), 2], 2, [
         findpool("BjørnUlvKanin"), 6,
@@ -480,20 +483,24 @@ stages = [ #Her er hva du skal skrive inn for stagen i rekkefølge: Navnet på b
 ]
 
 class shop:
-    def __init__(self, type, level = 10, size = 3):
+    def __init__(self, type, size = 2):
+        global currentdifficulty
         self.type = type
-        self.level = level
-        self.size = size
+        self.size = size + currentdifficulty
 
 
         if self.type == "GetCards":
             self.cards = []
             while len(self.cards) < self.size:
-                addcard = playercarddictionary[random.randint(0, len(playercarddictionary)-1)]
-                if addcard in self.cards:
-                    pass
-                else:
-                    self.cards.append(addcard)
+                shuffleddict = playercarddictionary
+                random.shuffle(shuffleddict)
+                for card in shuffleddict:
+                    if card.rarity <= currentdifficulty:
+                        if card not in self.cards:
+                            self.cards.append(card)
+                            break
+        
+
         if self.type == "BoostCards":
             rannum = random.randint(0,2)
             if rannum == 0:
@@ -503,7 +510,7 @@ class shop:
             if rannum == 2:
                 self.boosttype = "cost"
 
-def createmapmarkers(markeramount):
+def createmapmarkers(markeramount, difficulty):
     for i in range(markeramount):
         if i == 1:
             mapmarkers.append(mapmark(pygame.math.Vector2(0, i * 100), [], None, False))
@@ -513,9 +520,15 @@ def createmapmarkers(markeramount):
     for marker in mapmarkers:
         loops += 1
         if loops == markeramount:
-            marker.stage = copy.copy(findstage("WendigoBoss"))
+            print("Spawning Boss stage")
+            if difficulty == 1:
+                marker.stage = copy.copy(findstage("FirstBoss"))
         if loops % 2 == 0:
-            marker.stage = copy.copy(stages[random.randint(0, len(stages)-1)])
+            shuffledstages = stages
+            random.shuffle(shuffledstages)
+            for stage in shuffledstages:
+                if stage.difficulty == difficulty:
+                    marker.stage = copy.copy(stage)
         else:
             rannum = random.randint(0,2)
             if rannum == 0:
@@ -529,9 +542,12 @@ def createmapmarkers(markeramount):
                 marker.sprite = pygame.image.load(r"Spillet\Media\markericons\transfer.png")
 
 
-createmapmarkers(10)
+createmapmarkers(10, currentdifficulty)
 
-shopslots = []
+shopslots = [
+    lane(pygame.math.Vector2(WIDTH / 2 - 150 - lanesprite.get_width() / 2, 350), "Standard", "Shop" ,None),
+    lane(pygame.math.Vector2(WIDTH / 2 + 150 - lanesprite.get_width() / 2, 350), "Standard", "Shop" ,None),
+]
 
 waves = []
 spawnedenemycards = []
@@ -555,6 +571,7 @@ def spawnwave(stage):
 
     loops = 0
     while points > 0:
+        print("Looping through wave spawning")
         loops += 1
         if loops >= 1024:
             print("Infinite Recursion in Enemy Spawning, breaking while loop")
@@ -562,6 +579,11 @@ def spawnwave(stage):
         if None in spawnedenemycards:
             chosenenemy = random.choice(stage.pools[((currentwave+1)*2)-2].enemies)
             while chosenenemy.cost > points:
+                loops += 1
+                if loops >= 1024:
+                    print("Infinite Recursion in Enemy Spawning, breaking while loop")
+                    break
+                print("Chosen enemy costs too much , reselecting")
                 chosenenemy = random.choice(stage.pools[((currentwave+1)*2)-2].enemies)
             
             chosenlane = random.randint(0,4)
@@ -638,15 +660,18 @@ def changephase(nextphase):
         global shopslots
         gamephase = 2
         if currentshop.type == "GetCards":
+            shopslots[0].position = pygame.math.Vector2(-1000, -1000)
+            shopslots[1].position = pygame.math.Vector2(-1000, -1000)
             for card in currentshop.cards:
                 card.y = 100
         else:
-            shopslots = []
             if currentshop.type == "BoostCards":
-                shopslots.append(lane(pygame.math.Vector2((WIDTH / 2), 100), "Standard", "Player", None))
+                shopslots[0].position = pygame.math.Vector2(WIDTH/2 - lanesprite.get_width() / 2, 100)
+                shopslots[1].position = pygame.math.Vector2(-1000, -1000)
             else:
-                for i in range(2):
-                    shopslots.append(lane(pygame.math.Vector2((WIDTH / 3) * i + 75, 100), "Standard", "Player", None))
+                shopslots[0].position = pygame.math.Vector2(WIDTH / 2 + 150 - lanesprite.get_width() / 2, 100)
+                shopslots[1].position = pygame.math.Vector2(WIDTH / 2 - 150 - lanesprite.get_width() / 2, 100)
+                    
             for i in range(len(deck)):
                 drawcard()
             for card in hand:
@@ -658,6 +683,7 @@ def changephase(nextphase):
         for card in deck:
             card.y = HEIGHT-HANDHEIGHT
             card.visualy = HEIGHT-HANDHEIGHT
+            card.x = 0 - random.randint(-100,100)
         gamephase = 1
         areamap.position.y = -mapsprite.get_height()
         areamap.velocity.y = 35
@@ -669,6 +695,22 @@ def changephase(nextphase):
             if item != None:
                 item.lerpspeed = 0.5
                 item.x = -200 - random.randint(-50,50)
+        loadnewmap = True
+        global mapmarkers
+        for mark in mapmarkers:
+            if mark.finished == False:
+                loadnewmap = False
+
+        if loadnewmap == True:  
+            global currentdifficulty
+            print("Creating New Map")
+            currentdifficulty += 1
+            mapmarkers = []
+            createmapmarkers(10, currentdifficulty)
+            global playerhp
+            playerhp = 10
+            
+        
         changingphase = False
         
 
@@ -717,10 +759,11 @@ def finishattackphase():
                 if ability == "Rolling":
                     card.dmg += 1
                 if ability == "Healing+2":
-                    if playedcards[playedcards.index(card)+1] != None:
-                        playedcards[playedcards.index(card)+1].hp += 2
-                        if playedcards[playedcards.index(card)+1].hp > playedcards[playedcards.index(card)+1].maxhp:
-                            playedcards[playedcards.index(card)+1].hp = playedcards[playedcards.index(card)+1].maxhp
+                    if len(playedcards) == playedcards.index(card)-1:
+                        if playedcards[playedcards.index(card)+1] != None:
+                            playedcards[playedcards.index(card)+1].hp += 2
+                            if playedcards[playedcards.index(card)+1].hp > playedcards[playedcards.index(card)+1].maxhp:
+                                playedcards[playedcards.index(card)+1].hp = playedcards[playedcards.index(card)+1].maxhp
     
 
         #Sjekker om noen fiender er igjen
@@ -783,11 +826,30 @@ def attackphase():
 for i in range(4):
     drawcard()
 
-currentstage = stages[0]
+currentstage = findstage("First Level")
 spawnwave(currentstage)
 
 def delayedphase1():
+    global hand
+    global shopslots
     pygame.image.save(fakescreen, "Backgroundphase1.jpeg")
+    if currentshop.type == "Transfer":
+        shopslots[0].card = None
+    for i in hand:
+        if i != None:
+            deck.append(i)
+    hand = []
+    for slot in shopslots:
+        if slot.card != None:
+            deck.append(copy.copy(slot.card))
+            slot.card = None
+    random.shuffle(deck)
+    for i in deck:
+        i.y = HEIGHT-HANDHEIGHT
+        i.visualy = HEIGHT-HANDHEIGHT
+        i.hp = i.maxhp
+        i.dmg = i.ogdmg
+        i.cost = i.ogcost
     changephase(1)
 
 
@@ -815,7 +877,7 @@ while True:
                         if enemycard != None:
                             enemycard.hp = 0
                             enemycard.dmg = 0
-                            checkhealth()
+                            #checkhealth()
                     pass
                     
             if event.type == pygame.MOUSEBUTTONUP:
@@ -842,7 +904,6 @@ while True:
                                                             spawnedenemycards[lanes.index(lane)] = card
 
                 heldcard = None
-                originalcardpos = None
         
         if gamephase == 1:
             if event.type == pygame.MOUSEWHEEL:
@@ -861,7 +922,7 @@ while True:
                                     for connectionmarker in mapmarkers:
                                         if marker in connectionmarker.connections:
                                             print("Found Connection")
-                                            if connectionmarker.finished == True and marker.finished == False:
+                                            if marker.finished == False and connectionmarker.finished == True: 
                                                 marker.load()
                                                 print("Loading Marker")
                                                 
@@ -882,12 +943,18 @@ while True:
                                 shopslots[0].card.cost -= 1
                                 shopslots[0].card.ogcost -= 1
                             currentmarker.finished = True
-                            shopslots = []
-                            changephase(1)
+                            timers.append(timer(250, delayedphase1))
                         if currentshop.type == "Transfer":
-                            currentmarker.finished = True
-                            shopslots = []
-                            changephase(1)
+                            if shopslots[1].card != None:
+                                shopslots[0].card.abilities = copy.deepcopy(shopslots[0].card.abilities)
+                                for ability in shopslots[1].card.abilities:
+                                    if ability not in shopslots[0].card.abilities:
+                                        shopslots[0].card.abilities.append(ability)
+                                shopslots[1].card = None
+                                deck.append(shopslots[0].card)
+                                shopslots[0].card = None
+                                currentmarker.finished = True
+                                timers.append(timer(250, delayedphase1))
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
@@ -923,10 +990,18 @@ while True:
                             if pygame.mouse.get_pos()[0] > lane.position.x and pygame.mouse.get_pos()[1] > lane.position.y:
                                 if pygame.mouse.get_pos()[0] < lane.position.x + lanesprite.get_width() and pygame.mouse.get_pos()[1] < lane.position.y + lanesprite.get_height():
                                     if playedcards[shopslots.index(lane)] == None:
-                                        hand.remove(heldcard)
+                                        if heldcard in hand:
+                                            hand.remove(heldcard)
+                                        for slot in shopslots:
+                                            if slot.card == heldcard:
+                                                slot.card = None
+                                        heldcard.detached = False
+                                        if lane.card != None:
+                                            lane.card.y = HEIGHT-HANDHEIGHT
+                                            hand.append(lane.card)
                                         lane.card = heldcard
+                                    
                                         heldcard = None
-                                        originalcardpos = None
                                         break
                         if lane.card == heldcard:
                             hand.append(lane.card)
@@ -934,7 +1009,6 @@ while True:
                             lane.card = None
                             
                 heldcard = None
-                originalcardpos = None
                 
 
                                     
@@ -1040,10 +1114,10 @@ while True:
             text_rect = text_surface.get_rect()
             text_rect.center = (WIDTH/2,20)
             fakescreen.blit(text_surface, text_rect)
-            loops = 0
+            loops = 1
             for card in currentshop.cards:
                 card.draw(fakescreen)
-                card.x = ((WIDTH - 200) / currentshop.size) * loops + 100 + basiccard.get_width() / 2
+                card.x = ((WIDTH-handmargin * 2) / len(currentshop.cards)) * loops + handmargin
                 loops += 1
         if currentshop.type == "BoostCards" or currentshop.type == "Transfer":
             for lane in shopslots:
